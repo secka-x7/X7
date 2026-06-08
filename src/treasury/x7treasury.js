@@ -1,25 +1,12 @@
 // ═══════════════════════════════════════════════════════
 // X7 PROTOCOL — X7 TREASURY (System Revenue)
-// Tracks all revenue across all chains
+// All revenue tracking — fixed imports
 // ═══════════════════════════════════════════════════════
-import { getPublicClient } from '../utils/pimlico.js'
-import { CHAINS } from '../config/chains.js'
-import { query, run, getTotalRevenue, getTodayRevenue, getConfig, setConfig } from '../utils/db.js'
+import { run, query, setConfig, getConfig, getTotalRevenue, getTodayRevenue, recordRevenue } from '../utils/db.js'
 import { logger } from '../utils/logger.js'
 
-// Track revenue from an execution
-export function recordRevenue(chain, profitUsdc, strategy = 'liquidation') {
-  run(
-    `INSERT OR REPLACE INTO treasury (chain, token, balance, updated_at)
-     VALUES (?, 'revenue_today', 
-     COALESCE((SELECT CAST(balance AS REAL) FROM treasury WHERE chain = ? AND token = 'revenue_today'), 0) + ?,
-     strftime('%s','now'))`,
-    [chain, chain, profitUsdc]
-  )
-  logger.profit(`+$${profitUsdc.toFixed(2)} USDC on ${chain} via ${strategy}`)
-}
+export { recordRevenue, getTotalRevenue, getTodayRevenue }
 
-// Get treasury summary for dashboard
 export function getTreasurySummary() {
   return {
     totalAllTime: getTotalRevenue(),
@@ -33,42 +20,35 @@ function getRevenueByChain() {
   const chains = ['arbitrum', 'polygon', 'ethereum', 'avalanche', 'bnb']
   const result = {}
   for (const chain of chains) {
-    const rows = query(
-      `SELECT SUM(CAST(profit_usdc AS REAL)) as total FROM executions 
-       WHERE chain = ? AND status = 'success'`,
-      [chain]
-    )
-    result[chain] = rows[0]?.total || 0
+    try {
+      const rows = query(
+        `SELECT SUM(CAST(profit_usdc AS REAL)) as total FROM executions
+         WHERE chain = ? AND status = 'success'`,
+        [chain]
+      )
+      result[chain] = parseFloat(rows[0]?.total) || 0
+    } catch { result[chain] = 0 }
   }
   return result
 }
 
-// Maintain gas reserves autonomously
 export async function maintainGasReserves() {
+  const { getExecutorBalance } = await import('../utils/pimlico.js')
+  const { CHAINS } = await import('../config/chains.js')
   const minBalances = {
-    arbitrum: 0.001,  // ETH
-    polygon: 0.5,     // MATIC
-    ethereum: 0.001,  // ETH
-    avalanche: 0.01,  // AVAX
-    bnb: 0.005        // BNB
+    arbitrum: 0.001, polygon: 0.5, ethereum: 0.001, avalanche: 0.01, bnb: 0.005
   }
-
   for (const [chainName, minBalance] of Object.entries(minBalances)) {
     try {
-      const { getExecutorBalance } = await import('../utils/pimlico.js')
       const balance = await getExecutorBalance(chainName)
       const chain = CHAINS[chainName]
       const balanceNative = Number(balance) / 10 ** chain.gasDecimals
-
       if (balanceNative < minBalance) {
-        logger.warn(`Low gas on ${chainName}: ${balanceNative} ${chain.gasToken}`)
-        // APEX-TREASURY will handle refill from profits
         setConfig(`low_gas_${chainName}`, 'true')
+        logger.warn(`Low gas on ${chainName}: ${balanceNative.toFixed(6)} ${chain.gasToken}`)
       } else {
         setConfig(`low_gas_${chainName}`, 'false')
       }
-    } catch (e) {
-      logger.error(`Gas check failed for ${chainName}:`, e.message)
-    }
+    } catch {}
   }
 }

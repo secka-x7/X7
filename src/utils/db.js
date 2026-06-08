@@ -177,3 +177,54 @@ export function logApex(subsystem, action, result) {
     [subsystem, action, JSON.stringify(result)]
   )
 }
+
+// ── REVENUE RECORDING (fixes import in executor.js) ───────────
+export function recordRevenue(chain, profitUsdc, strategy = 'liquidation') {
+  if (!profitUsdc || profitUsdc <= 0) return
+  run(
+    `INSERT OR REPLACE INTO treasury (chain, token, balance, updated_at)
+     VALUES (?, 'revenue_today',
+     COALESCE((SELECT CAST(balance AS REAL) FROM treasury
+       WHERE chain = ? AND token = 'revenue_today'), 0) + ?,
+     strftime('%s','now'))`,
+    [chain, chain, profitUsdc]
+  )
+  // Also update all-time counter
+  run(
+    `INSERT OR REPLACE INTO treasury (chain, token, balance, updated_at)
+     VALUES (?, 'revenue_alltime',
+     COALESCE((SELECT CAST(balance AS REAL) FROM treasury
+       WHERE chain = ? AND token = 'revenue_alltime'), 0) + ?,
+     strftime('%s','now'))`,
+    [chain, chain, profitUsdc]
+  )
+  // Burn 1% of revenue as X7T (deflationary)
+  const burnAmount = profitUsdc * 0.01
+  const currentBurned = parseFloat(getConfig('x7t_burned') || '0')
+  setConfig('x7t_burned', (currentBurned + burnAmount).toFixed(6))
+}
+
+// ── REVENUE GETTERS (used by coordinator, dashboard) ──────────
+export function getTotalRevenue() {
+  try {
+    const rows = query(
+      "SELECT SUM(CAST(profit_usdc AS REAL)) as total FROM executions WHERE status = 'success'"
+    )
+    return parseFloat(rows[0]?.total) || 0
+  } catch { return 0 }
+}
+
+export function getTodayRevenue() {
+  try {
+    const rows = query(
+      `SELECT SUM(CAST(profit_usdc AS REAL)) as total FROM executions
+       WHERE status = 'success'
+       AND created_at >= strftime('%s', 'now', 'start of day')`
+    )
+    return parseFloat(rows[0]?.total) || 0
+  } catch { return 0 }
+}
+
+// ── ALIAS EXPORTS (backward compatibility) ────────────────────
+// These ensure any file importing from db.js finds what it needs
+export { saveDB as persistDB }

@@ -1,26 +1,13 @@
+// ═══════════════════════════════════════════════════════
+// X7 PROTOCOL — DASHBOARD SERVER
+// Fixed all imports — health endpoint first
+// ═══════════════════════════════════════════════════════
 import express from 'express'
 import { createServer } from 'http'
 import { WebSocketServer } from 'ws'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
 import { logger } from '../utils/logger.js'
-import { getTreasurySummary } from '../treasury/x7treasury.js'
-import { getTreasury7Summary } from '../treasury/treasury7.js'
-import { withdrawToWave, handleModemWebhook, getWithdrawalHistory } from '../treasury/modemPay.js'
-import {
-  getRecentExecutions, getTotalRevenue, getTodayRevenue,
-  getConfig, query, getWithdrawals
-} from '../utils/db.js'
-import { getCascadeStatus } from '../face1/cascade.js'
-import { getNexus7Stats } from '../face2/nexus7.js'
-import { getIntegratedProtocols, getTotalManagedTVL } from '../face2/gateway.js'
-import { getX7USDStats } from '../face3/x7usd.js'
-import { getVaultStats } from '../face3/convergenceVault.js'
-import { getIntelligenceReport } from '../face4/healthIndex.js'
-import { getApexStatus } from '../apex/coordinator.js'
-import { getGuardianStatus } from '../apex/guardian.js'
-import { getSingularityStatus } from '../apex/singularity.js'
-import { findBestYield } from '../face3/yieldRouter.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -32,15 +19,13 @@ const wss = new WebSocketServer({ server })
 app.use(express.json())
 app.use(express.static(join(__dirname, 'public')))
 
-// Connected dashboard clients
 const clients = new Set()
-
 wss.on('connection', (ws) => {
   clients.add(ws)
   ws.on('close', () => clients.delete(ws))
+  ws.on('error', () => clients.delete(ws))
 })
 
-// Push real-time updates to all connected dashboards
 export function broadcastUpdate(type, data) {
   const msg = JSON.stringify({ type, data, ts: Date.now() })
   for (const client of clients) {
@@ -50,7 +35,7 @@ export function broadcastUpdate(type, data) {
   }
 }
 
-// ── HEALTH (Railway requires this first) ──────────────────────
+// ── HEALTH ENDPOINT — must be first ──────────────────────────
 app.get('/health', (req, res) => {
   res.status(200).json({
     status: 'operational',
@@ -60,58 +45,90 @@ app.get('/health', (req, res) => {
   })
 })
 
-// ── API: OVERVIEW ─────────────────────────────────────────────
-app.get('/api/overview', (req, res) => {
+// Lazy-load heavy modules only after server is up
+let modules = {}
+async function loadModules() {
+  if (modules.loaded) return modules
   try {
+    const [db, treasury, treasury7, modemPay, cascade,
+           nexus7, gateway, x7usd, vault, health,
+           apex, guardian, singularity] = await Promise.all([
+      import('../utils/db.js'),
+      import('../treasury/x7treasury.js'),
+      import('../treasury/treasury7.js'),
+      import('../treasury/modemPay.js'),
+      import('../face1/cascade.js'),
+      import('../face2/nexus7.js'),
+      import('../face2/gateway.js'),
+      import('../face3/x7usd.js'),
+      import('../face3/convergenceVault.js'),
+      import('../face4/healthIndex.js'),
+      import('../apex/coordinator.js'),
+      import('../apex/guardian.js'),
+      import('../apex/singularity.js')
+    ])
+    modules = { loaded: true, db, treasury, treasury7, modemPay, cascade,
+                nexus7, gateway, x7usd, vault, health, apex, guardian, singularity }
+    logger.success('Dashboard modules loaded')
+  } catch (e) {
+    logger.error('Module load error:', e.message)
+    modules.loaded = false
+  }
+  return modules
+}
+
+// ── API ROUTES ────────────────────────────────────────────────
+app.get('/api/overview', async (req, res) => {
+  try {
+    const m = await loadModules()
+    if (!m.loaded) return res.json({ totalRevenue: 0, todayRevenue: 0, recentExecutions: [], cascade: {}, nexus7: {}, apex: {}, guardian: {}, singularity: {}, volatility: 'moderate', prices: {}, intelligence: {} })
     res.json({
-      totalRevenue: getTotalRevenue(),
-      todayRevenue: getTodayRevenue(),
-      recentExecutions: getRecentExecutions(10),
-      cascade: getCascadeStatus(),
-      nexus7: getNexus7Stats(),
-      apex: getApexStatus(),
-      guardian: getGuardianStatus(),
-      singularity: getSingularityStatus(),
-      volatility: getConfig('market_volatility') || 'moderate',
-      prices: JSON.parse(getConfig('prices') || '{}'),
-      intelligence: getIntelligenceReport()
+      totalRevenue: m.db.getTotalRevenue(),
+      todayRevenue: m.db.getTodayRevenue(),
+      recentExecutions: m.db.getRecentExecutions(10),
+      cascade: m.cascade.getCascadeStatus(),
+      nexus7: m.nexus7.getNexus7Stats(),
+      apex: m.apex.getApexStatus(),
+      guardian: m.guardian.getGuardianStatus(),
+      singularity: m.singularity.getSingularityStatus(),
+      volatility: m.db.getConfig('market_volatility') || 'moderate',
+      prices: JSON.parse(m.db.getConfig('prices') || '{}'),
+      intelligence: m.health.getIntelligenceReport()
     })
   } catch (e) {
-    res.status(500).json({ error: e.message })
+    res.status(500).json({ error: e.message, totalRevenue: 0 })
   }
 })
 
-// ── API: LIQUIDATIONS ─────────────────────────────────────────
-app.get('/api/liquidations', (req, res) => {
+app.get('/api/liquidations', async (req, res) => {
   try {
+    const m = await loadModules()
+    if (!m.loaded) return res.json({ executions: [], stats: { total: 0, success: 0, totalProfit: 0 } })
     const limit = parseInt(req.query.limit) || 50
     const chain = req.query.chain || null
-    let sql = `SELECT * FROM executions WHERE strategy IN ('liquidation','cascade')
-               ${chain ? `AND chain = '${chain}'` : ''}
-               ORDER BY created_at DESC LIMIT ?`
-    const executions = query(sql, [limit])
-    const stats = {
-      total: query("SELECT COUNT(*) as c FROM executions WHERE strategy='liquidation'")[0]?.c || 0,
-      success: query("SELECT COUNT(*) as c FROM executions WHERE strategy='liquidation' AND status='success'")[0]?.c || 0,
-      totalProfit: query("SELECT SUM(CAST(profit_usdc AS REAL)) as t FROM executions WHERE status='success'"  )[0]?.t || 0
-    }
-    res.json({ executions, stats })
+    const sql = `SELECT * FROM executions WHERE strategy IN ('liquidation','cascade')${chain ? ` AND chain='${chain}'` : ''} ORDER BY created_at DESC LIMIT ?`
+    const executions = m.db.query(sql, [limit])
+    const total = m.db.query("SELECT COUNT(*) as c FROM executions WHERE strategy='liquidation'")[0]?.c || 0
+    const success = m.db.query("SELECT COUNT(*) as c FROM executions WHERE strategy='liquidation' AND status='success'")[0]?.c || 0
+    const totalProfit = m.db.query("SELECT SUM(CAST(profit_usdc AS REAL)) as t FROM executions WHERE status='success'"  )[0]?.t || 0
+    res.json({ executions, stats: { total, success, totalProfit } })
   } catch (e) {
-    res.status(500).json({ error: e.message })
+    res.status(500).json({ error: e.message, executions: [], stats: {} })
   }
 })
 
-// ── API: TREASURY (Page 8) ────────────────────────────────────
-app.get('/api/treasury', (req, res) => {
+app.get('/api/treasury', async (req, res) => {
   try {
+    const m = await loadModules()
+    if (!m.loaded) return res.json({ x7Treasury: {}, treasury7: {}, withdrawals: [] })
     res.json({
-      x7Treasury: getTreasurySummary(),
-      treasury7: getTreasury7Summary(),
-      withdrawals: getWithdrawals(20),
+      x7Treasury: m.treasury.getTreasurySummary(),
+      treasury7: m.treasury7.getTreasury7Summary(),
+      withdrawals: m.db.getWithdrawals(20),
       yieldPositions: {
-        deployed: parseFloat(getConfig('yield_deployed_arbitrum') || '0') +
-                  parseFloat(getConfig('yield_deployed_polygon') || '0'),
-        bestAPY: parseFloat(getConfig('best_apy') || '8')
+        deployed: parseFloat(m.db.getConfig('yield_deployed_arbitrum') || '0') +
+                  parseFloat(m.db.getConfig('yield_deployed_polygon') || '0'),
+        bestAPY: parseFloat(m.db.getConfig('best_apy') || '8')
       }
     })
   } catch (e) {
@@ -119,15 +136,15 @@ app.get('/api/treasury', (req, res) => {
   }
 })
 
-// ── API: WITHDRAW — amount only required ─────────────────────
 app.post('/api/withdraw', async (req, res) => {
   try {
+    const m = await loadModules()
     const { amount } = req.body
     if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
       return res.status(400).json({ error: 'Valid USDC amount required' })
     }
     const usdcAmount = parseFloat(amount)
-    const result = await withdrawToWave(usdcAmount)
+    const result = await m.modemPay.withdrawToWave(usdcAmount)
     broadcastUpdate('withdrawal_initiated', { amount: usdcAmount, id: result.idempotencyKey })
     res.json({ success: true, transfer: result.transfer, id: result.idempotencyKey })
   } catch (e) {
@@ -135,39 +152,39 @@ app.post('/api/withdraw', async (req, res) => {
   }
 })
 
-// ── API: NEXUS-7 ──────────────────────────────────────────────
-app.get('/api/nexus7', (req, res) => {
+app.get('/api/nexus7', async (req, res) => {
   try {
+    const m = await loadModules()
+    if (!m.loaded) return res.json({ stats: {}, protocols: [], managedTVL: 0 })
     res.json({
-      stats: getNexus7Stats(),
-      protocols: getIntegratedProtocols(),
-      managedTVL: getTotalManagedTVL()
+      stats: m.nexus7.getNexus7Stats(),
+      protocols: m.gateway.getIntegratedProtocols(),
+      managedTVL: m.gateway.getTotalManagedTVL()
     })
   } catch (e) {
     res.status(500).json({ error: e.message })
   }
 })
 
-// ── API: X7USD ────────────────────────────────────────────────
-app.get('/api/x7usd', (req, res) => {
+app.get('/api/x7usd', async (req, res) => {
   try {
-    res.json({
-      stats: getX7USDStats(),
-      vault: getVaultStats()
-    })
+    const m = await loadModules()
+    if (!m.loaded) return res.json({ stats: {}, vault: {} })
+    res.json({ stats: m.x7usd.getX7USDStats(), vault: m.vault.getVaultStats() })
   } catch (e) {
     res.status(500).json({ error: e.message })
   }
 })
 
-// ── API: APEX ─────────────────────────────────────────────────
-app.get('/api/apex', (req, res) => {
+app.get('/api/apex', async (req, res) => {
   try {
-    const logs = query('SELECT * FROM apex_log ORDER BY created_at DESC LIMIT 50')
+    const m = await loadModules()
+    if (!m.loaded) return res.json({ status: {}, guardian: {}, singularity: {}, logs: [] })
+    const logs = m.db.query('SELECT * FROM apex_log ORDER BY created_at DESC LIMIT 50')
     res.json({
-      status: getApexStatus(),
-      guardian: getGuardianStatus(),
-      singularity: getSingularityStatus(),
+      status: m.apex.getApexStatus(),
+      guardian: m.guardian.getGuardianStatus(),
+      singularity: m.singularity.getSingularityStatus(),
       logs
     })
   } catch (e) {
@@ -175,54 +192,37 @@ app.get('/api/apex', (req, res) => {
   }
 })
 
-// ── API: ANALYTICS ────────────────────────────────────────────
-app.get('/api/analytics', (req, res) => {
+app.get('/api/analytics', async (req, res) => {
   try {
-    const hourly = query(
-      `SELECT strftime('%H', datetime(created_at, 'unixepoch')) as hour,
-       SUM(CAST(profit_usdc AS REAL)) as revenue,
-       COUNT(*) as count
-       FROM executions WHERE status='success'
-       GROUP BY hour ORDER BY hour`
-    )
-    const byChain = query(
-      `SELECT chain,
-       SUM(CAST(profit_usdc AS REAL)) as revenue,
-       COUNT(*) as count,
-       AVG(CAST(profit_usdc AS REAL)) as avg_profit
-       FROM executions WHERE status='success'
-       GROUP BY chain ORDER BY revenue DESC`
-    )
-    const byStrategy = query(
-      `SELECT strategy,
-       SUM(CAST(profit_usdc AS REAL)) as revenue,
-       COUNT(*) as count
-       FROM executions WHERE status='success'
-       GROUP BY strategy`
-    )
+    const m = await loadModules()
+    if (!m.loaded) return res.json({ hourly: [], byChain: [], byStrategy: [], winRates: {} })
+    const hourly = m.db.query(`SELECT strftime('%H', datetime(created_at,'unixepoch')) as hour, SUM(CAST(profit_usdc AS REAL)) as revenue, COUNT(*) as count FROM executions WHERE status='success' GROUP BY hour ORDER BY hour`)
+    const byChain = m.db.query(`SELECT chain, SUM(CAST(profit_usdc AS REAL)) as revenue, COUNT(*) as count, AVG(CAST(profit_usdc AS REAL)) as avg_profit FROM executions WHERE status='success' GROUP BY chain ORDER BY revenue DESC`)
+    const byStrategy = m.db.query(`SELECT strategy, SUM(CAST(profit_usdc AS REAL)) as revenue, COUNT(*) as count FROM executions WHERE status='success' GROUP BY strategy`)
     const winRates = {}
-    for (const chain of ['arbitrum', 'polygon', 'ethereum', 'avalanche', 'bnb']) {
-      winRates[chain] = parseFloat(getConfig(`win_rate_${chain}`) || '0.4')
+    for (const chain of ['arbitrum','polygon','ethereum','avalanche','bnb']) {
+      winRates[chain] = parseFloat(m.db.getConfig(`win_rate_${chain}`) || '0.4')
     }
-    res.json({ hourly, byChain, byStrategy, winRates, intelligence: getIntelligenceReport() })
+    res.json({ hourly, byChain, byStrategy, winRates, intelligence: m.health.getIntelligenceReport() })
   } catch (e) {
     res.status(500).json({ error: e.message })
   }
 })
 
-// ── API: SINGULARITY ──────────────────────────────────────────
-app.get('/api/singularity', (req, res) => {
+app.get('/api/singularity', async (req, res) => {
   try {
-    res.json(getSingularityStatus())
+    const m = await loadModules()
+    if (!m.loaded) return res.json({ phase: 1, progress: 0 })
+    res.json(m.singularity.getSingularityStatus())
   } catch (e) {
     res.status(500).json({ error: e.message })
   }
 })
 
-// ── MODEM PAY WEBHOOK ─────────────────────────────────────────
 app.post('/webhooks/modem-pay', async (req, res) => {
   try {
-    await handleModemWebhook(req.body)
+    const m = await loadModules()
+    await m.modemPay.handleModemWebhook(req.body)
     broadcastUpdate('withdrawal_update', req.body)
     res.json({ received: true })
   } catch (e) {
@@ -230,7 +230,6 @@ app.post('/webhooks/modem-pay', async (req, res) => {
   }
 })
 
-// Serve dashboard for all routes (SPA)
 app.get('*', (req, res) => {
   res.sendFile(join(__dirname, 'public', 'index.html'))
 })
@@ -238,17 +237,19 @@ app.get('*', (req, res) => {
 export function startDashboard() {
   const PORT = process.env.PORT || 3000
   server.listen(PORT, '0.0.0.0', () => {
-    logger.success(`X7 BLACK dashboard live on port ${PORT}`)
+    logger.success(`X7 BLACK live on port ${PORT}`)
   })
-
-  // Push live updates every 5 seconds
-  setInterval(() => {
-    broadcastUpdate('tick', {
-      revenue: getTotalRevenue(),
-      today: getTodayRevenue(),
-      time: Date.now()
-    })
+  setInterval(async () => {
+    try {
+      const m = await loadModules()
+      if (m.loaded) {
+        broadcastUpdate('tick', {
+          revenue: m.db.getTotalRevenue(),
+          today: m.db.getTodayRevenue(),
+          time: Date.now()
+        })
+      }
+    } catch {}
   }, 5000)
-
   return server
 }

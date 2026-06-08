@@ -12,7 +12,7 @@ import { MIN_PROFIT_USD } from '../config/protocols.js'
 import { getPublicClient, getWalletClient } from '../utils/pimlico.js'
 import { estimateProfit } from '../intelligence/predictor.js'
 import { getGasMultiplier } from '../intelligence/learner.js'
-import { recordExecution, recordRevenue } from '../utils/db.js'
+import { recordExecution, recordRevenue } from "../utils/db.js"
 import { logger } from '../utils/logger.js'
 import { getPrice } from '../intelligence/signals.js'
 

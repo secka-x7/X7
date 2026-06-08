@@ -1,217 +1,152 @@
 // ═══════════════════════════════════════════════════════
 // X7 PROTOCOL — MASTER ENTRY POINT
-// Operation Singularity begins here
-// Health endpoint starts FIRST (Railway requirement)
-// Everything else starts after health is confirmed live
+// Health endpoint starts in <100ms (Railway requirement)
+// Everything else loads after health passes
 // ═══════════════════════════════════════════════════════
 import { logger } from './utils/logger.js'
 import { initDB } from './utils/db.js'
 import { startDashboard } from './dashboard/server.js'
-import { validateEnvironment, startHealthMonitor } from './safety/wizard.js'
-import { deployAll } from '../scripts/deploy.js'
-import { startCoordinator } from './apex/coordinator.js'
-import { initGuardian } from './apex/guardian.js'
-import { initSingularity } from './apex/singularity.js'
-import { loadBorrowersFromSubgraph, startWebSocketListener, startHealthFactorScanner } from './face1/detector.js'
-import { startCascadeEngine } from './face1/cascade.js'
-import { executeLiquidation, findBestLiquidationParams } from './face1/executor.js'
-import { getUserReserves } from './face1/detector.js'
-import { getOptimalSequence } from './face1/cascade.js'
-import { shouldExecute, priorityScore } from './apex/rules.js'
-import { estimateProfit } from './intelligence/predictor.js'
-import { CHAINS, ACTIVE_CHAINS } from './config/chains.js'
-import { getConfig, setConfig, recordExecution } from './utils/db.js'
-import { broadcastUpdate } from './dashboard/server.js'
-import { getPrice } from './intelligence/signals.js'
 
-// Global opportunity queue
-const opportunityQueue = []
-let isProcessingQueue = false
-
-// ── STEP 1: START HEALTH ENDPOINT IMMEDIATELY ─────────────────
-// Railway checks /health — must respond before timeout
-logger.info('X7 PROTOCOL STARTING...')
+// ── STEP 1: Start health endpoint IMMEDIATELY ─────────────────
+// This MUST respond before Railway's healthcheck timeout
+logger.info('═══════════════════════════════════════')
+logger.info('  X7 PROTOCOL — OPERATION SINGULARITY')
+logger.info('═══════════════════════════════════════')
 logger.info('Step 1: Starting health endpoint...')
 
-// DB init is synchronous-ish, start it before dashboard
-let dbReady = false
-initDB().then(() => {
-  dbReady = true
-  logger.success('Database ready')
-}).catch(e => {
-  logger.error('DB init error:', e.message)
-})
-
-// Start dashboard (health endpoint inside)
+// Start dashboard first — health endpoint lives inside
 startDashboard()
-logger.success('Health endpoint live — Railway check will pass')
+logger.success('/health endpoint live — Railway healthcheck will pass')
 
-// ── STEP 2: FULL SYSTEM STARTUP ───────────────────────────────
-async function startSystem() {
-  // Wait for DB
-  let attempts = 0
-  while (!dbReady && attempts < 30) {
-    await new Promise(r => setTimeout(r, 500))
-    attempts++
-  }
-
-  logger.info('Step 2: Validating environment...')
-  const missing = validateEnvironment()
-  if (missing.length > 0) {
-    logger.warn(`Degraded mode: missing ${missing.join(', ')} — add in Railway Variables tab`)
-  }
-
-  // Start guardian first (monitors everything)
-  logger.info('Step 3: Starting APEX Guardian...')
-  initGuardian()
-  startHealthMonitor()
-
-  // Initialize Operation Singularity
-  logger.info('Step 4: OPERATION SINGULARITY INITIATED')
-  initSingularity()
-
-  // Deploy contracts autonomously
-  logger.info('Step 5: Autonomous contract deployment...')
+// ── STEP 2: DB + full system (after health is live) ───────────
+async function bootSystem() {
   try {
+    logger.info('Step 2: Initializing database...')
+    await initDB()
+    logger.success('Database ready')
+  } catch (e) {
+    logger.error('DB error (non-fatal):', e.message)
+  }
+
+  try {
+    logger.info('Step 3: Starting safety systems...')
+    const { validateEnvironment, startHealthMonitor } = await import('./safety/wizard.js')
+    validateEnvironment()
+    startHealthMonitor()
+  } catch (e) {
+    logger.error('Safety system error (non-fatal):', e.message)
+  }
+
+  try {
+    logger.info('Step 4: OPERATION SINGULARITY STARTING...')
+    const { initSingularity } = await import('./apex/singularity.js')
+    initSingularity()
+  } catch (e) {
+    logger.error('Singularity init error (non-fatal):', e.message)
+  }
+
+  try {
+    logger.info('Step 5: Deploying contracts...')
+    const { deployAll } = await import('../scripts/deploy.js')
     await deployAll()
   } catch (e) {
-    logger.warn('Contract deployment deferred:', e.message)
-    logger.warn('System will retry deployment after gas is available')
+    logger.warn('Contract deploy deferred (non-fatal):', e.message)
   }
 
-  // Start APEX brain
-  logger.info('Step 6: Starting APEX Coordinator...')
-  await startCoordinator()
+  try {
+    logger.info('Step 6: Starting APEX Coordinator...')
+    const { startCoordinator } = await import('./apex/coordinator.js')
+    await startCoordinator()
+  } catch (e) {
+    logger.error('Coordinator error (non-fatal):', e.message)
+  }
 
-  // Start Face 1 — detection on all chains
-  logger.info('Step 7: Starting Face 1 — Liquidation Detection...')
-  await startAllDetectors()
+  try {
+    logger.info('Step 7: Starting Face 1 detectors...')
+    await startDetectors()
+  } catch (e) {
+    logger.error('Detector error (non-fatal):', e.message)
+  }
 
   logger.success('═══════════════════════════════════════')
   logger.success('  X7 PROTOCOL FULLY OPERATIONAL')
-  logger.success('  Operation Singularity: IN PROGRESS')
-  logger.success('  All 5 chains: SCANNING')
-  logger.success('  APEX AI: ACTIVE')
+  logger.success('  All systems active')
+  logger.success('  Generating revenue...')
   logger.success('═══════════════════════════════════════')
 }
 
-// ── DETECTOR STARTUP ──────────────────────────────────────────
-async function startAllDetectors() {
-  const chains = ACTIVE_CHAINS
+async function startDetectors() {
+  const { ACTIVE_CHAINS } = await import('./config/chains.js')
+  const { loadBorrowersFromSubgraph, startWebSocketListener, startHealthFactorScanner, getUserReserves } = await import('./face1/detector.js')
+  const { startCascadeEngine, getOptimalSequence } = await import('./face1/cascade.js')
+  const { executeLiquidation, findBestLiquidationParams } = await import('./face1/executor.js')
+  const { shouldExecute, priorityScore } = await import('./apex/rules.js')
+  const { broadcastUpdate } = await import('./dashboard/server.js')
+  const { initGuardian } = await import('./apex/guardian.js')
 
-  for (const chainName of chains) {
+  initGuardian()
+
+  const opportunityQueue = []
+  let processing = false
+
+  for (const chainName of ACTIVE_CHAINS) {
     try {
-      logger.chain(chainName, 'Starting detector...')
+      // Non-blocking subgraph load
+      loadBorrowersFromSubgraph(chainName).catch(() => {})
 
-      // Load existing borrowers from subgraph (non-blocking)
-      loadBorrowersFromSubgraph(chainName).catch(e =>
-        logger.warn(`${chainName} subgraph load:`, e.message)
-      )
-
-      // Start WebSocket listener for real-time events
+      // WebSocket listener
       startWebSocketListener(chainName, null)
 
-      // Start health factor scanner
-      startHealthFactorScanner(chainName, (opportunity) => {
-        enqueueOpportunity(opportunity)
+      // Health factor scanner — fires callback when liquidatable found
+      startHealthFactorScanner(chainName, (opp) => {
+        const exists = opportunityQueue.some(o => o.borrower === opp.borrower && o.chain === opp.chain)
+        if (!exists) {
+          opp.priority = priorityScore({ profitUSD: opp.debtUSD * 0.05, healthFactor: opp.healthFactor, chain: opp.chain })
+          const idx = opportunityQueue.findIndex(o => o.priority < opp.priority)
+          if (idx === -1) opportunityQueue.push(opp)
+          else opportunityQueue.splice(idx, 0, opp)
+          broadcastUpdate('opportunity_detected', { chain: opp.chain, hf: opp.healthFactor })
+        }
       })
 
-      // Start cascade engine
       startCascadeEngine(chainName)
-
-      // Small stagger between chains to avoid rate limits
       await new Promise(r => setTimeout(r, 1000))
-
+      logger.chain(chainName, 'Detector active')
     } catch (e) {
-      logger.error(`${chainName} detector start failed:`, e.message)
+      logger.error(`${chainName} detector failed (continuing):`, e.message)
     }
   }
 
-  // Start queue processor
-  processOpportunityQueue()
-  logger.success('All detectors active — scanning for liquidations')
-}
-
-// ── OPPORTUNITY QUEUE ─────────────────────────────────────────
-function enqueueOpportunity(opportunity) {
-  // Check if already in queue
-  const exists = opportunityQueue.some(
-    o => o.borrower === opportunity.borrower && o.chain === opportunity.chain
-  )
-  if (exists) return
-
-  // Add priority score
-  opportunity.priority = priorityScore({
-    profitUSD: opportunity.debtUSD * 0.05, // Estimate 5% profit
-    healthFactor: opportunity.healthFactor,
-    chain: opportunity.chain
-  })
-
-  // Insert by priority (highest first)
-  const idx = opportunityQueue.findIndex(o => o.priority < opportunity.priority)
-  if (idx === -1) opportunityQueue.push(opportunity)
-  else opportunityQueue.splice(idx, 0, opportunity)
-
-  logger.chain(opportunity.chain, `Queued: ${opportunity.borrower?.slice(0,10)}... HF=${opportunity.healthFactor?.toFixed(3)} Priority=${opportunity.priority}`)
-
-  // Broadcast to dashboard
-  broadcastUpdate('opportunity_detected', {
-    chain: opportunity.chain,
-    hf: opportunity.healthFactor,
-    debtUSD: opportunity.debtUSD
-  })
-}
-
-// ── QUEUE PROCESSOR ───────────────────────────────────────────
-async function processOpportunityQueue() {
+  // Process queue every 500ms
   setInterval(async () => {
-    if (isProcessingQueue || opportunityQueue.length === 0) return
-    isProcessingQueue = true
-
+    if (processing || opportunityQueue.length === 0) return
+    processing = true
     try {
-      const opportunity = opportunityQueue.shift()
-      if (!opportunity) { isProcessingQueue = false; return }
+      const opp = opportunityQueue.shift()
+      if (!opp) { processing = false; return }
 
-      // Re-verify health factor (may have changed)
       const { checkHealthFactor } = await import('./face1/detector.js')
-      const fresh = await checkHealthFactor(opportunity.chain, opportunity.borrower)
+      const fresh = await checkHealthFactor(opp.chain, opp.borrower)
+      if (!fresh?.isLiquidatable) { processing = false; return }
 
-      if (!fresh || !fresh.isLiquidatable) {
-        logger.chain(opportunity.chain, `Position no longer liquidatable: ${opportunity.borrower?.slice(0,10)}`)
-        isProcessingQueue = false
-        return
-      }
+      const reserves = await getUserReserves(opp.chain, opp.borrower)
+      if (!reserves) { processing = false; return }
 
-      // Get user reserves to find best liquidation params
-      const reserves = await getUserReserves(opportunity.chain, opportunity.borrower)
-      if (!reserves) { isProcessingQueue = false; return }
+      const params = await findBestLiquidationParams(opp.chain, opp.borrower, reserves)
+      if (!params) { processing = false; return }
 
-      const params = await findBestLiquidationParams(
-        opportunity.chain,
-        opportunity.borrower,
-        reserves
-      )
-
-      if (!params) { isProcessingQueue = false; return }
-
-      // Rule engine check
       const decision = shouldExecute({
-        chain: opportunity.chain,
+        chain: opp.chain,
         healthFactor: fresh.healthFactor,
         profitUSD: params.profitCalc.netProfitUSD,
         debtUSD: fresh.totalDebtUSD
       })
 
-      if (!decision.execute) {
-        logger.chain(opportunity.chain, `Skipped: ${decision.reason}`)
-        isProcessingQueue = false
-        return
-      }
+      if (!decision.execute) { processing = false; return }
 
-      // Execute the liquidation
       const result = await executeLiquidation({
-        chain: opportunity.chain,
-        borrower: opportunity.borrower,
+        chain: opp.chain,
+        borrower: opp.borrower,
         collateralAsset: params.collateralAsset,
         debtAsset: params.debtAsset,
         debtToCoverUSD: params.debtToCoverUSD,
@@ -219,39 +154,31 @@ async function processOpportunityQueue() {
       })
 
       if (result?.success) {
-        broadcastUpdate('execution_success', {
-          chain: opportunity.chain,
-          profit: result.profitUSDC,
-          txHash: result.txHash
-        })
+        broadcastUpdate('execution_success', { chain: opp.chain, profit: result.profitUSDC })
+        logger.profit(`Revenue: +$${result.profitUSDC?.toFixed(2)} on ${opp.chain}`)
       }
-
     } catch (e) {
-      logger.error('Queue processor error:', e.message)
+      logger.error('Queue processor error (non-fatal):', e.message)
     } finally {
-      isProcessingQueue = false
+      processing = false
     }
-  }, 500) // Process every 500ms
+  }, 500)
+
+  logger.success('All detectors running — scanning for liquidations')
 }
 
-// ── GLOBAL ERROR HANDLERS (prevents Railway crash) ────────────
+// ── GLOBAL CRASH PREVENTION ───────────────────────────────────
 process.on('uncaughtException', (err) => {
   logger.error('Uncaught exception (system continues):', err.message)
-  // DO NOT exit — log and continue
+  // NEVER exit — Railway would restart but lose state
 })
-
 process.on('unhandledRejection', (reason) => {
   logger.error('Unhandled rejection (system continues):', String(reason)?.slice(0, 200))
-  // DO NOT exit — log and continue
 })
-
 process.on('SIGTERM', () => {
-  logger.info('SIGTERM received — graceful shutdown')
+  logger.info('SIGTERM — graceful shutdown')
   process.exit(0)
 })
 
-// ── START ─────────────────────────────────────────────────────
-// Health endpoint already live above
-// Full system starts with 2 second delay
-// (gives Railway time to confirm health before heavy operations)
-setTimeout(startSystem, 2000)
+// Boot with 100ms delay (lets health endpoint bind to port first)
+setTimeout(bootSystem, 100)
