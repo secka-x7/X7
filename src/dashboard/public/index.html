@@ -1,0 +1,924 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>X7 BLACK — Command. Control. Conquer.</title>
+<style>
+:root {
+  --bg: #050508;
+  --surface: #0a0a12;
+  --surface2: #0f0f1a;
+  --border: #1a1a2e;
+  --blue: #2563eb;
+  --blue2: #1d4ed8;
+  --bluelight: #60a5fa;
+  --blueglow: rgba(37,99,235,0.12);
+  --text: #f8fafc;
+  --text2: #94a3b8;
+  --text3: #475569;
+  --green: #10b981;
+  --yellow: #f59e0b;
+  --red: #ef4444;
+  --gold: #f59e0b;
+  --r: 10px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;overflow-x:hidden}
+
+/* ── MOBILE NAV ── */
+.mobile-nav{display:none;position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border);z-index:1000;padding:8px 0 env(safe-area-inset-bottom)}
+.mobile-nav .tabs{display:flex;justify-content:space-around}
+.mobile-nav .tab{display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 10px;cursor:pointer;color:var(--text3);font-size:10px;transition:.2s;background:none;border:none;flex:1}
+.mobile-nav .tab.active{color:var(--blue)}
+.mobile-nav .tab svg{width:20px;height:20px}
+
+/* ── DESKTOP SIDEBAR ── */
+.sidebar{width:220px;height:100vh;background:var(--surface);border-right:1px solid var(--border);position:fixed;left:0;top:0;overflow-y:auto;z-index:100;display:flex;flex-direction:column}
+.sidebar-logo{padding:20px;border-bottom:1px solid var(--border)}
+.logo-text{font-size:20px;font-weight:800;background:linear-gradient(135deg,var(--bluelight),var(--blue));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.logo-sub{font-size:10px;color:var(--text3);letter-spacing:2px;margin-top:2px}
+.nav-items{padding:12px 0;flex:1}
+.nav-item{display:flex;align-items:center;gap:10px;padding:10px 20px;cursor:pointer;color:var(--text2);font-size:13px;transition:.15s;border-left:3px solid transparent}
+.nav-item:hover{background:var(--blueglow);color:var(--text)}
+.nav-item.active{background:var(--blueglow);color:var(--bluelight);border-left-color:var(--blue)}
+.nav-item svg{width:16px;height:16px;flex-shrink:0}
+.sidebar-footer{padding:16px;border-top:1px solid var(--border)}
+.system-status{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text3)}
+.status-dot{width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* ── MAIN CONTENT ── */
+.main{margin-left:220px;min-height:100vh;padding:24px}
+.page{display:none}
+.page.active{display:block}
+
+/* ── HEADER ── */
+.page-header{margin-bottom:20px}
+.page-title{font-size:22px;font-weight:700}
+.page-sub{font-size:13px;color:var(--text3);margin-top:3px}
+
+/* ── CARDS ── */
+.grid{display:grid;gap:16px}
+.grid-2{grid-template-columns:repeat(2,1fr)}
+.grid-3{grid-template-columns:repeat(3,1fr)}
+.grid-4{grid-template-columns:repeat(4,1fr)}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:20px}
+.card-sm{padding:14px 16px}
+.card-title{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px}
+.card-value{font-size:26px;font-weight:700}
+.card-value.green{color:var(--green)}
+.card-value.blue{color:var(--bluelight)}
+.card-value.gold{color:var(--gold)}
+.card-sub{font-size:12px;color:var(--text3);margin-top:4px}
+.card-badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:2px 8px;border-radius:20px;margin-top:6px}
+.badge-green{background:rgba(16,185,129,.15);color:var(--green)}
+.badge-blue{background:rgba(37,99,235,.15);color:var(--bluelight)}
+.badge-yellow{background:rgba(245,158,11,.15);color:var(--yellow)}
+.badge-red{background:rgba(239,68,68,.15);color:var(--red)}
+
+/* ── REVENUE TICKER ── */
+.ticker{background:linear-gradient(135deg,var(--surface),var(--surface2));border:1px solid var(--border);border-radius:var(--r);padding:16px 20px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.ticker-item{text-align:center}
+.ticker-label{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px}
+.ticker-value{font-size:22px;font-weight:800;color:var(--green)}
+.ticker-value.blue{color:var(--bluelight)}
+.ticker-divider{width:1px;height:40px;background:var(--border)}
+
+/* ── LIVE FEED ── */
+.feed{display:flex;flex-direction:column;gap:8px;max-height:400px;overflow-y:auto}
+.feed-item{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface2);border-radius:8px;font-size:12px;border-left:3px solid var(--border)}
+.feed-item.success{border-left-color:var(--green)}
+.feed-item.failed{border-left-color:var(--red)}
+.feed-item.pending{border-left-color:var(--yellow)}
+.feed-chain{font-size:10px;padding:2px 6px;border-radius:4px;background:var(--blueglow);color:var(--bluelight);font-weight:600}
+.feed-profit{color:var(--green);font-weight:700;margin-left:auto;white-space:nowrap}
+.feed-profit.zero{color:var(--text3)}
+
+/* ── CHAIN STATUS ── */
+.chains{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+.chain-card{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;text-align:center}
+.chain-dot{width:8px;height:8px;border-radius:50%;background:var(--green);margin:0 auto 6px;animation:pulse 2s infinite}
+.chain-dot.offline{background:var(--red);animation:none}
+.chain-dot.starting{background:var(--yellow)}
+.chain-name{font-size:11px;font-weight:600}
+.chain-rev{font-size:13px;color:var(--green);font-weight:700;margin-top:4px}
+
+/* ── TREASURY PAGE ── */
+.treasury-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.withdraw-panel{background:var(--surface2);border:1px solid var(--blue);border-radius:var(--r);padding:24px}
+.withdraw-title{font-size:15px;font-weight:700;margin-bottom:4px;color:var(--bluelight)}
+.withdraw-sub{font-size:12px;color:var(--text3);margin-bottom:20px}
+.withdraw-available{font-size:28px;font-weight:800;color:var(--green);margin-bottom:16px}
+.input-group{margin-bottom:14px}
+.input-label{font-size:12px;color:var(--text2);margin-bottom:6px;display:block}
+.input-field{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px 14px;color:var(--text);font-size:16px;outline:none;transition:.2s}
+.input-field:focus{border-color:var(--blue);box-shadow:0 0 0 3px var(--blueglow)}
+.quick-btns{display:flex;gap:8px;margin-bottom:16px}
+.quick-btn{flex:1;padding:8px;background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text2);font-size:12px;cursor:pointer;transition:.2s}
+.quick-btn:hover{border-color:var(--blue);color:var(--blue)}
+.btn{width:100%;padding:14px;background:linear-gradient(135deg,var(--blue),var(--blue2));border:none;border-radius:8px;color:#fff;font-size:15px;font-weight:700;cursor:pointer;transition:.2s;letter-spacing:.5px}
+.btn:hover{opacity:.9;transform:translateY(-1px)}
+.btn:active{transform:translateY(0)}
+.btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
+.btn-sm{padding:10px 20px;width:auto;font-size:13px}
+.chain-selector{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 14px;color:var(--text);font-size:13px;margin-bottom:14px;outline:none}
+.withdraw-note{font-size:11px;color:var(--text3);margin-top:12px;line-height:1.5}
+.withdraw-history{margin-top:16px}
+.history-item{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:12px}
+.history-status{padding:2px 8px;border-radius:10px;font-size:10px}
+.status-completed{background:rgba(16,185,129,.15);color:var(--green)}
+.status-pending{background:rgba(245,158,11,.15);color:var(--yellow)}
+.status-failed{background:rgba(239,68,68,.15);color:var(--red)}
+.status-flagged{background:rgba(239,68,68,.3);color:var(--red)}
+.withdraw-msg{padding:10px 14px;border-radius:8px;font-size:13px;margin-top:10px;display:none}
+.msg-success{background:rgba(16,185,129,.15);color:var(--green);border:1px solid rgba(16,185,129,.3);display:block}
+.msg-error{background:rgba(239,68,68,.15);color:var(--red);border:1px solid rgba(239,68,68,.3);display:block}
+
+/* ── PROGRESS BAR ── */
+.progress-bar{background:var(--border);border-radius:4px;height:6px;overflow:hidden;margin-top:8px}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--blue),var(--bluelight));border-radius:4px;transition:width .5s}
+
+/* ── TABLE ── */
+.table{width:100%;border-collapse:collapse;font-size:12px}
+.table th{padding:8px 12px;text-align:left;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border)}
+.table td{padding:10px 12px;border-bottom:1px solid var(--border)}
+.table tr:hover td{background:var(--surface2)}
+
+/* ── APEX AI ── */
+.apex-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.apex-insight{background:linear-gradient(135deg,var(--surface),var(--surface2));border:1px solid var(--blue);border-radius:var(--r);padding:20px}
+.apex-insight-text{font-size:14px;color:var(--bluelight);line-height:1.6}
+.log-item{padding:8px 12px;border-bottom:1px solid var(--border);font-size:11px;font-family:monospace;color:var(--text2)}
+.log-item .log-type{color:var(--bluelight)}
+
+/* ── SINGULARITY ── */
+.mission-header{text-align:center;padding:30px;background:linear-gradient(135deg,var(--surface),var(--surface2));border:1px solid var(--border);border-radius:var(--r);margin-bottom:20px}
+.mission-title{font-size:28px;font-weight:800;background:linear-gradient(135deg,#fff,var(--bluelight));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.mission-phase{font-size:14px;color:var(--text3);margin-top:6px}
+.phase-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.phase-card{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:16px;text-align:center}
+.phase-card.done{border-color:var(--green)}
+.phase-card.active{border-color:var(--blue);background:var(--blueglow)}
+.phase-num{font-size:24px;font-weight:800;color:var(--text3)}
+.phase-num.done{color:var(--green)}
+.phase-num.active{color:var(--bluelight)}
+.phase-name{font-size:11px;color:var(--text3);margin-top:4px}
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+
+/* ── MOBILE RESPONSIVE ── */
+@media(max-width:768px){
+  .sidebar{display:none}
+  .mobile-nav{display:block}
+  .main{margin-left:0;padding:16px;padding-bottom:80px}
+  .grid-4,.grid-3{grid-template-columns:repeat(2,1fr)}
+  .grid-2{grid-template-columns:1fr}
+  .chains{grid-template-columns:repeat(3,1fr)}
+  .treasury-grid{grid-template-columns:1fr}
+  .apex-grid{grid-template-columns:1fr}
+  .phase-grid{grid-template-columns:repeat(2,1fr)}
+  .ticker{justify-content:center}
+  .ticker-divider{display:none}
+  .card-value{font-size:20px}
+  .withdraw-available{font-size:22px}
+  .page-title{font-size:18px}
+}
+@media(max-width:400px){
+  .grid-4,.grid-3,.grid-2{grid-template-columns:1fr}
+  .chains{grid-template-columns:repeat(2,1fr)}
+  .phase-grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<!-- DESKTOP SIDEBAR -->
+<div class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-text">X7 BLACK</div>
+    <div class="logo-sub">COMMAND · CONTROL · CONQUER</div>
+  </div>
+  <nav class="nav-items">
+    <div class="nav-item active" onclick="showPage('command')">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+      Command Center
+    </div>
+    <div class="nav-item" onclick="showPage('liquidations')">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+      Liquidations
+    </div>
+    <div class="nav-item" onclick="showPage('nexus7')">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+      NEXUS-7
+    </div>
+    <div class="nav-item" onclick="showPage('treasury')">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      Treasury
+    </div>
+    <div class="nav-item" onclick="showPage('x7usd')">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+      X7USD
+    </div>
+    <div class="nav-item" onclick="showPage('apex')">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17H3a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2h-2"/></svg>
+      APEX AI
+    </div>
+    <div class="nav-item" onclick="showPage('analytics')">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+      Analytics
+    </div>
+    <div class="nav-item" onclick="showPage('singularity')">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" stroke-width="2"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+      Singularity
+    </div>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="system-status"><div class="status-dot" id="sysStatus"></div><span id="sysLabel">System Active</span></div>
+  </div>
+</div>
+
+<!-- MOBILE BOTTOM NAV -->
+<div class="mobile-nav">
+  <div class="tabs">
+    <button class="tab active" onclick="showPage('command')">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+      Home
+    </button>
+    <button class="tab" onclick="showPage('liquidations')">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+      Execute
+    </button>
+    <button class="tab" onclick="showPage('treasury')">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      Treasury
+    </button>
+    <button class="tab" onclick="showPage('apex')">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17H3a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2h-2"/></svg>
+      APEX
+    </button>
+    <button class="tab" onclick="showPage('singularity')">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" stroke-width="2"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4"/></svg>
+      Mission
+    </button>
+  </div>
+</div>
+
+<!-- MAIN CONTENT -->
+<div class="main">
+
+  <!-- PAGE 1: COMMAND CENTER -->
+  <div class="page active" id="page-command">
+    <div class="page-header">
+      <div class="page-title">⚡ Command Center</div>
+      <div class="page-sub">X7 Protocol — DeFi Financial Operating System</div>
+    </div>
+    <div class="ticker">
+      <div class="ticker-item"><div class="ticker-label">All Time Revenue</div><div class="ticker-value" id="t-total">$0.00</div></div>
+      <div class="ticker-divider"></div>
+      <div class="ticker-item"><div class="ticker-label">Today</div><div class="ticker-value" id="t-today">$0.00</div></div>
+      <div class="ticker-divider"></div>
+      <div class="ticker-item"><div class="ticker-label">Executions</div><div class="ticker-value blue" id="t-execs">0</div></div>
+      <div class="ticker-divider"></div>
+      <div class="ticker-item"><div class="ticker-label">Market</div><div class="ticker-value blue" id="t-vol">—</div></div>
+    </div>
+    <div class="grid grid-4" style="margin-bottom:16px">
+      <div class="card card-sm"><div class="card-title">ETH Price</div><div class="card-value blue" id="c-eth">—</div></div>
+      <div class="card card-sm"><div class="card-title">BTC Price</div><div class="card-value blue" id="c-btc">—</div></div>
+      <div class="card card-sm"><div class="card-title">Borrowers Watched</div><div class="card-value" id="c-borrowers">0</div></div>
+      <div class="card card-sm"><div class="card-title">Protocols Integrated</div><div class="card-value gold" id="c-protocols">0</div></div>
+    </div>
+    <div class="chains" style="margin-bottom:16px" id="chain-status"></div>
+    <div class="grid grid-2">
+      <div class="card">
+        <div class="card-title">Live Executions</div>
+        <div class="feed" id="feed-executions"><div style="color:var(--text3);font-size:12px;padding:20px;text-align:center">Scanning for opportunities...</div></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Cascade Map</div>
+        <div id="cascade-display" style="font-size:12px;color:var(--text2)">Building cascade graph...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PAGE 2: LIQUIDATIONS -->
+  <div class="page" id="page-liquidations">
+    <div class="page-header"><div class="page-title">⚡ Liquidation Command</div><div class="page-sub">Real-time execution across 5 chains</div></div>
+    <div class="grid grid-3" style="margin-bottom:16px">
+      <div class="card card-sm"><div class="card-title">Total Liquidations</div><div class="card-value" id="l-total">0</div></div>
+      <div class="card card-sm"><div class="card-title">Success Rate</div><div class="card-value green" id="l-rate">0%</div></div>
+      <div class="card card-sm"><div class="card-title">Total Profit</div><div class="card-value green" id="l-profit">$0</div></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Execution History</div>
+      <div style="overflow-x:auto">
+        <table class="table">
+          <thead><tr><th>Chain</th><th>Borrower</th><th>Profit</th><th>Status</th><th>Time</th></tr></thead>
+          <tbody id="liq-table"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- PAGE 3: NEXUS-7 -->
+  <div class="page" id="page-nexus7">
+    <div class="page-header"><div class="page-title">⬡ NEXUS-7 Clearing House</div><div class="page-sub">DeFi Settlement Layer — 0.1% fee on all volume</div></div>
+    <div class="grid grid-4" style="margin-bottom:16px">
+      <div class="card card-sm"><div class="card-title">Settlement Fees</div><div class="card-value green" id="n-fees">$0</div></div>
+      <div class="card card-sm"><div class="card-title">Settlements</div><div class="card-value blue" id="n-count">0</div></div>
+      <div class="card card-sm"><div class="card-title">Protocols</div><div class="card-value gold" id="n-protocols">0</div></div>
+      <div class="card card-sm"><div class="card-title">Managed TVL</div><div class="card-value" id="n-tvl">$0</div></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Integrated Protocols</div>
+      <div id="protocols-list" style="font-size:13px;color:var(--text2);padding:10px">Loading protocol network...</div>
+    </div>
+  </div>
+
+  <!-- PAGE 4 (PAGE 8 IN SPEC): TREASURY -->
+  <div class="page" id="page-treasury">
+    <div class="page-header"><div class="page-title">💰 Dual Treasury Command</div><div class="page-sub">X7 Treasury + Treasury 7</div></div>
+    <div class="treasury-grid">
+      <!-- LEFT: X7 TREASURY + WITHDRAWAL -->
+      <div>
+        <div class="card" style="margin-bottom:16px">
+          <div class="card-title">X7 Treasury — System Revenue</div>
+          <div class="card-value green" id="tr-total">$0.00 USDC</div>
+          <div class="card-sub">All time revenue</div>
+          <div style="margin-top:16px;display:grid;gap:8px" id="chain-rev-breakdown"></div>
+        </div>
+        <!-- WITHDRAWAL PANEL -->
+        <div class="withdraw-panel">
+          <div class="withdraw-title">💸 Withdraw to Wave</div>
+          <div class="withdraw-sub">Amount only required — Modem Pay handles the rest</div>
+          <div class="withdraw-available">Available: <span id="wd-available">$0.00</span> USDC</div>
+          <div class="input-group">
+            <label class="input-label">Amount (USDC)</label>
+            <input class="input-field" type="number" id="wd-amount" placeholder="Enter amount..." min="1" step="0.01">
+          </div>
+          <div class="quick-btns">
+            <button class="quick-btn" onclick="setWithdrawPct(25)">25%</button>
+            <button class="quick-btn" onclick="setWithdrawPct(50)">50%</button>
+            <button class="quick-btn" onclick="setWithdrawPct(75)">75%</button>
+            <button class="quick-btn" onclick="setWithdrawPct(100)">MAX</button>
+          </div>
+          <select class="chain-selector" id="wd-chain">
+            <option value="polygon">Polygon (cheapest gas ✓ recommended)</option>
+            <option value="arbitrum">Arbitrum</option>
+            <option value="ethereum">Ethereum</option>
+            <option value="avalanche">Avalanche</option>
+            <option value="bnb">BNB Chain</option>
+          </select>
+          <button class="btn" id="wd-btn" onclick="doWithdraw()">TRANSFER TO WAVE →</button>
+          <div class="withdraw-note">
+            → Modem Pay → Wave Mobile Money → GMD<br>
+            Estimated arrival: under 10 minutes<br>
+            Flexible: bank transfers available when Modem Pay enables them
+          </div>
+          <div class="withdraw-msg" id="wd-msg"></div>
+          <div class="withdraw-history" id="wd-history"></div>
+        </div>
+      </div>
+      <!-- RIGHT: TREASURY 7 -->
+      <div class="card">
+        <div class="card-title">Treasury 7 — X7T + X7USD</div>
+        <div style="display:grid;gap:16px;margin-top:8px">
+          <div><div style="font-size:11px;color:var(--text3)">X7T Total Supply</div><div style="font-size:20px;font-weight:700;color:var(--gold)">7,000,000,000</div></div>
+          <div><div style="font-size:11px;color:var(--text3)">X7T Burned 🔥</div><div style="font-size:18px;font-weight:700;color:var(--red)" id="x7t-burned">0</div></div>
+          <div><div style="font-size:11px;color:var(--text3)">X7USD Circulation</div><div style="font-size:18px;font-weight:700;color:var(--bluelight)" id="x7usd-circ">$0.00</div></div>
+          <div><div style="font-size:11px;color:var(--text3)">Backing Ratio</div><div style="font-size:18px;font-weight:700;color:var(--green)" id="x7usd-backing">100%+</div></div>
+          <div><div style="font-size:11px;color:var(--text3)">Current APY to Holders</div><div style="font-size:18px;font-weight:700;color:var(--green)">10.00%</div></div>
+          <div><div style="font-size:11px;color:var(--text3)">Convergence Vault TVL</div><div style="font-size:18px;font-weight:700" id="vault-tvl">$0.00</div></div>
+          <div id="yield-positions"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PAGE 5: X7USD -->
+  <div class="page" id="page-x7usd">
+    <div class="page-header"><div class="page-title">◈ X7USD Stablecoin</div><div class="page-sub">Yield-bearing stablecoin — competing with $321B market</div></div>
+    <div class="grid grid-3" style="margin-bottom:16px">
+      <div class="card card-sm"><div class="card-title">Circulation</div><div class="card-value blue" id="usd-circ">$0</div></div>
+      <div class="card card-sm"><div class="card-title">Backing Ratio</div><div class="card-value green" id="usd-backing">100%+</div></div>
+      <div class="card card-sm"><div class="card-title">APY to Holders</div><div class="card-value green">10.00%</div></div>
+    </div>
+    <div class="card">
+      <div class="card-title">X7USD vs Competitors</div>
+      <table class="table">
+        <thead><tr><th>Stablecoin</th><th>Market Cap</th><th>Yield</th><th>Backing</th></tr></thead>
+        <tbody>
+          <tr><td style="color:var(--bluelight);font-weight:700">X7USD</td><td id="x7usd-mcap">$0</td><td style="color:var(--green)">10% APY</td><td style="color:var(--green)">100%+ DeFi Revenue</td></tr>
+          <tr><td>USDC</td><td>$78B</td><td style="color:var(--red)">0% APY</td><td>USD reserves</td></tr>
+          <tr><td>USDT</td><td>$190B</td><td style="color:var(--red)">0% APY</td><td>Tether</td></tr>
+          <tr><td>USDe</td><td>$5.9B</td><td style="color:var(--yellow)">~5% APY</td><td>Delta neutral</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- PAGE 6: APEX AI -->
+  <div class="page" id="page-apex">
+    <div class="page-header"><div class="page-title">🧠 APEX AI Command</div><div class="page-sub">Autonomous Protocol Execution and Expansion</div></div>
+    <div class="apex-grid" style="margin-bottom:16px">
+      <div class="apex-insight">
+        <div class="card-title">Current Intelligence</div>
+        <div class="apex-insight-text" id="apex-insight">Initializing APEX...</div>
+        <div style="margin-top:12px;font-size:11px;color:var(--text3)">Last action: <span id="apex-action">—</span></div>
+      </div>
+      <div class="card">
+        <div class="card-title">System Metrics</div>
+        <div style="display:grid;gap:10px;font-size:13px" id="apex-metrics"></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">APEX Activity Log</div>
+      <div style="max-height:300px;overflow-y:auto" id="apex-log"></div>
+    </div>
+  </div>
+
+  <!-- PAGE 7: ANALYTICS -->
+  <div class="page" id="page-analytics">
+    <div class="page-header"><div class="page-title">📊 Deep Intelligence</div><div class="page-sub">Revenue analytics and performance metrics</div></div>
+    <div class="grid grid-2" style="margin-bottom:16px">
+      <div class="card">
+        <div class="card-title">Revenue by Chain</div>
+        <div id="chain-analytics"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Win Rates</div>
+        <div id="winrate-analytics"></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Revenue by Strategy</div>
+      <div id="strategy-analytics"></div>
+    </div>
+  </div>
+
+  <!-- PAGE 8: SINGULARITY -->
+  <div class="page" id="page-singularity">
+    <div class="mission-header">
+      <div class="mission-title">⚡ OPERATION SINGULARITY</div>
+      <div class="mission-phase">Mission: Full X7 Capacity — End of Day 1</div>
+      <div style="margin-top:16px">
+        <div style="font-size:11px;color:var(--text3);margin-bottom:6px">PROGRESS</div>
+        <div class="progress-bar" style="height:10px"><div class="progress-fill" id="sing-progress" style="width:0%"></div></div>
+        <div style="font-size:13px;color:var(--text2);margin-top:8px"><span id="sing-pct">0</span>% — Phase <span id="sing-phase">1</span>: <span id="sing-phasename">IGNITION</span></div>
+      </div>
+    </div>
+    <div class="phase-grid" id="phase-grid"></div>
+  </div>
+
+</div><!-- /main -->
+
+<script>
+// ── WEBSOCKET CONNECTION ──────────────────────────────────────
+let ws = null
+let totalRevenue = 0
+let todayRevenue = 0
+
+function connectWS() {
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:'
+  ws = new WebSocket(`${proto}//${location.host}`)
+  ws.onmessage = (e) => {
+    try {
+      const { type, data } = JSON.parse(e.data)
+      if (type === 'tick') {
+        totalRevenue = data.revenue
+        todayRevenue = data.today
+        updateTicker()
+      }
+      if (type === 'withdrawal_initiated') showMsg('Withdrawal sent to Modem Pay!', 'success')
+      if (type === 'withdrawal_update') refreshTreasury()
+    } catch {}
+  }
+  ws.onclose = () => setTimeout(connectWS, 3000)
+  ws.onerror = () => ws.close()
+}
+connectWS()
+
+// ── PAGE NAVIGATION ───────────────────────────────────────────
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'))
+  document.querySelectorAll('.nav-item, .tab').forEach(n => n.classList.remove('active'))
+  const page = document.getElementById('page-' + id)
+  if (page) page.classList.add('active')
+  document.querySelectorAll(`[onclick="showPage('${id}')"]`).forEach(el => el.classList.add('active'))
+  loadPageData(id)
+}
+
+// ── DATA LOADING ──────────────────────────────────────────────
+async function api(path) {
+  try {
+    const r = await fetch(path)
+    return await r.json()
+  } catch { return null }
+}
+
+function fmt(n) {
+  if (!n && n !== 0) return '$0'
+  const num = parseFloat(n)
+  if (num >= 1e9) return '$' + (num/1e9).toFixed(2) + 'B'
+  if (num >= 1e6) return '$' + (num/1e6).toFixed(2) + 'M'
+  if (num >= 1e3) return '$' + (num/1e3).toFixed(1) + 'K'
+  return '$' + num.toFixed(2)
+}
+
+function timeAgo(ts) {
+  const s = Math.floor((Date.now() - (ts*1000)) / 1000)
+  if (s < 60) return s + 's ago'
+  if (s < 3600) return Math.floor(s/60) + 'm ago'
+  return Math.floor(s/3600) + 'h ago'
+}
+
+function updateTicker() {
+  const e = document.getElementById('t-total')
+  if (e) e.textContent = fmt(totalRevenue)
+  const t = document.getElementById('t-today')
+  if (t) t.textContent = fmt(todayRevenue)
+}
+
+async function loadPageData(page) {
+  if (page === 'command') await loadCommand()
+  if (page === 'liquidations') await loadLiquidations()
+  if (page === 'nexus7') await loadNexus7()
+  if (page === 'treasury') await refreshTreasury()
+  if (page === 'x7usd') await loadX7USD()
+  if (page === 'apex') await loadApex()
+  if (page === 'analytics') await loadAnalytics()
+  if (page === 'singularity') await loadSingularity()
+}
+
+// ── COMMAND CENTER ────────────────────────────────────────────
+async function loadCommand() {
+  const d = await api('/api/overview')
+  if (!d) return
+
+  document.getElementById('t-total').textContent = fmt(d.totalRevenue)
+  document.getElementById('t-today').textContent = fmt(d.todayRevenue)
+  document.getElementById('t-execs').textContent = d.recentExecutions?.length || 0
+  document.getElementById('t-vol').textContent = (d.volatility || 'moderate').toUpperCase()
+
+  const prices = d.prices || {}
+  document.getElementById('c-eth').textContent = prices.ETH ? '$' + prices.ETH.toLocaleString() : '—'
+  document.getElementById('c-btc').textContent = prices.BTC ? '$' + prices.BTC.toLocaleString() : '—'
+
+  const intel = d.intelligence || {}
+  const health = intel.health || {}
+  document.getElementById('c-borrowers').textContent = (health.totalBorrowers || 0).toLocaleString()
+
+  // Chain status
+  const chains = ['arbitrum', 'polygon', 'ethereum', 'avalanche', 'bnb']
+  const chainEl = document.getElementById('chain-status')
+  if (chainEl) {
+    chainEl.innerHTML = chains.map(c => {
+      const guardH = (d.guardian?.chainHealth || {})[c] || 'starting'
+      const dotClass = guardH === 'healthy' ? '' : guardH === 'degraded' ? 'offline' : 'starting'
+      return `<div class="chain-card">
+        <div class="chain-dot ${dotClass}"></div>
+        <div class="chain-name">${c.toUpperCase().slice(0,3)}</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:2px">${guardH}</div>
+      </div>`
+    }).join('')
+  }
+
+  // Executions feed
+  const feed = document.getElementById('feed-executions')
+  if (feed && d.recentExecutions?.length > 0) {
+    feed.innerHTML = d.recentExecutions.map(e => `
+      <div class="feed-item ${e.status}">
+        <span class="feed-chain">${(e.chain||'?').toUpperCase().slice(0,3)}</span>
+        <span style="color:var(--text2)">${e.strategy||'liquidation'}</span>
+        <span style="color:var(--text3);font-size:10px">${e.borrower ? e.borrower.slice(0,8)+'...' : ''}</span>
+        <span class="feed-profit ${parseFloat(e.profit_usdc||0) > 0 ? '' : 'zero'}">
+          ${parseFloat(e.profit_usdc||0) > 0 ? '+' + fmt(e.profit_usdc) : e.status}
+        </span>
+      </div>`).join('')
+  } else if (feed) {
+    feed.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:20px;text-align:center">Scanning all 5 chains...</div>'
+  }
+
+  // Cascade
+  const cascade = d.cascade || {}
+  const cascEl = document.getElementById('cascade-display')
+  if (cascEl) {
+    const entries = Object.entries(cascade)
+    if (entries.length > 0) {
+      cascEl.innerHTML = entries.map(([chain, data]) => `
+        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">
+          <span style="font-weight:600;color:var(--bluelight)">${chain.toUpperCase()}</span>
+          <span>T1: <strong style="color:var(--red)">${data.tier1||0}</strong></span>
+          <span>T2: <strong style="color:var(--yellow)">${data.tier2||0}</strong></span>
+          <span style="color:var(--green)">${data.probability||0}%</span>
+          <span style="color:var(--text3)">${fmt(data.estimatedRevenueUSD||0)}</span>
+        </div>`).join('')
+    } else {
+      cascEl.innerHTML = '<div style="color:var(--text3);padding:10px">Building cascade graph...</div>'
+    }
+  }
+
+  // Protocols count
+  const n7 = d.nexus7 || {}
+  document.getElementById('c-protocols').textContent = n7.protocolsConnected || 0
+}
+
+// ── LIQUIDATIONS ──────────────────────────────────────────────
+async function loadLiquidations() {
+  const d = await api('/api/liquidations')
+  if (!d) return
+  document.getElementById('l-total').textContent = d.stats?.total || 0
+  const rate = d.stats?.total > 0 ? ((d.stats.success / d.stats.total) * 100).toFixed(1) + '%' : '0%'
+  document.getElementById('l-rate').textContent = rate
+  document.getElementById('l-profit').textContent = fmt(d.stats?.totalProfit)
+
+  const tbody = document.getElementById('liq-table')
+  if (tbody && d.executions?.length > 0) {
+    tbody.innerHTML = d.executions.map(e => `
+      <tr>
+        <td><span class="feed-chain">${(e.chain||'?').toUpperCase().slice(0,3)}</span></td>
+        <td style="color:var(--text3);font-family:monospace;font-size:11px">${e.borrower ? e.borrower.slice(0,12)+'...' : '—'}</td>
+        <td style="color:var(--green);font-weight:700">${fmt(e.profit_usdc)}</td>
+        <td><span class="history-status status-${e.status}">${e.status}</span></td>
+        <td style="color:var(--text3)">${e.created_at ? timeAgo(e.created_at) : '—'}</td>
+      </tr>`).join('')
+  } else if (tbody) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:20px">No executions yet — system scanning...</td></tr>'
+  }
+}
+
+// ── NEXUS-7 ───────────────────────────────────────────────────
+async function loadNexus7() {
+  const d = await api('/api/nexus7')
+  if (!d) return
+  const s = d.stats || {}
+  document.getElementById('n-fees').textContent = fmt(s.totalFees)
+  document.getElementById('n-count').textContent = (s.totalSettlements || 0).toLocaleString()
+  document.getElementById('n-protocols').textContent = s.protocolsConnected || 0
+  document.getElementById('n-tvl').textContent = fmt(d.managedTVL)
+
+  const list = document.getElementById('protocols-list')
+  if (list && d.protocols?.length > 0) {
+    list.innerHTML = d.protocols.map(p => `
+      <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border)">
+        <span style="font-weight:600">${p.name}</span>
+        <span style="color:var(--text3)">${p.chain}</span>
+        <span style="color:var(--green)">${fmt(parseFloat(p.tvl_usd||0))}</span>
+        <span class="history-status status-${p.status}">${p.status}</span>
+      </div>`).join('')
+  } else if (list) {
+    list.innerHTML = '<div style="color:var(--text3);padding:20px;text-align:center">APEX is sending outreach to 500+ protocols...<br><span style="font-size:11px">First integrations expected within 24-48 hours</span></div>'
+  }
+}
+
+// ── TREASURY ──────────────────────────────────────────────────
+async function refreshTreasury() {
+  const d = await api('/api/treasury')
+  if (!d) return
+
+  const t = d.x7Treasury || {}
+  const total = parseFloat(t.totalAllTime || 0)
+  document.getElementById('tr-total').textContent = fmt(total) + ' USDC'
+  document.getElementById('wd-available').textContent = fmt(total)
+
+  // Per-chain breakdown
+  const byChain = t.byChain || {}
+  const breakdown = document.getElementById('chain-rev-breakdown')
+  if (breakdown) {
+    breakdown.innerHTML = Object.entries(byChain).map(([chain, rev]) => `
+      <div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0">
+        <span style="color:var(--text2)">${chain.charAt(0).toUpperCase()+chain.slice(1)}</span>
+        <span style="color:var(--green);font-weight:600">${fmt(rev)}</span>
+      </div>`).join('')
+  }
+
+  // Treasury 7
+  const t7 = d.treasury7 || {}
+  const x7t = t7.x7t || {}
+  const x7usd = t7.x7usd || {}
+  const el = document.getElementById('x7t-burned')
+  if (el) el.textContent = (parseFloat(x7t.burned||0)).toLocaleString()
+  const uc = document.getElementById('x7usd-circ')
+  if (uc) uc.textContent = fmt(x7usd.circulation)
+  const ub = document.getElementById('x7usd-backing')
+  if (ub) ub.textContent = x7usd.backingRatio || '100%+'
+  const vt = document.getElementById('vault-tvl')
+  if (vt) vt.textContent = fmt(d.x7Treasury?.totalAllTime || 0)
+
+  // Withdrawal history
+  const hist = document.getElementById('wd-history')
+  if (hist && d.withdrawals?.length > 0) {
+    hist.innerHTML = '<div style="font-size:11px;color:var(--text3);margin-bottom:8px;margin-top:16px">Recent Withdrawals</div>' +
+      d.withdrawals.slice(0,5).map(w => `
+        <div class="history-item">
+          <span>${fmt(w.usdc_amount)} USDC</span>
+          <span style="color:var(--text3)">→ Wave</span>
+          <span class="history-status status-${w.status}">${w.status}</span>
+          <span style="color:var(--text3);font-size:10px">${w.created_at ? timeAgo(w.created_at) : ''}</span>
+        </div>`).join('')
+  }
+}
+
+// ── WITHDRAWAL LOGIC ──────────────────────────────────────────
+function setWithdrawPct(pct) {
+  const available = parseFloat(document.getElementById('tr-total')?.textContent?.replace(/[^0-9.]/g,'') || 0)
+  if (available > 0) {
+    document.getElementById('wd-amount').value = (available * pct / 100).toFixed(2)
+  }
+}
+
+async function doWithdraw() {
+  const amountEl = document.getElementById('wd-amount')
+  const btn = document.getElementById('wd-btn')
+  const msg = document.getElementById('wd-msg')
+  const amount = parseFloat(amountEl?.value)
+
+  if (!amount || amount <= 0) {
+    showMsg('Please enter a valid amount', 'error')
+    return
+  }
+
+  btn.disabled = true
+  btn.textContent = 'Processing...'
+  msg.className = 'withdraw-msg'
+  msg.style.display = 'none'
+
+  try {
+    const resp = await fetch('/api/withdraw', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount })
+    })
+    const data = await resp.json()
+
+    if (data.success) {
+      showMsg(`✅ Transfer initiated! ID: ${data.id?.slice(0,8)}... Arrives in ~10 minutes via Wave`, 'success')
+      amountEl.value = ''
+      setTimeout(refreshTreasury, 2000)
+    } else {
+      showMsg('❌ Error: ' + (data.error || 'Transfer failed'), 'error')
+    }
+  } catch (e) {
+    showMsg('❌ Network error: ' + e.message, 'error')
+  } finally {
+    btn.disabled = false
+    btn.textContent = 'TRANSFER TO WAVE →'
+  }
+}
+
+function showMsg(text, type) {
+  const msg = document.getElementById('wd-msg')
+  if (msg) {
+    msg.textContent = text
+    msg.className = 'withdraw-msg msg-' + type
+  }
+}
+
+// ── X7USD ─────────────────────────────────────────────────────
+async function loadX7USD() {
+  const d = await api('/api/x7usd')
+  if (!d) return
+  const s = d.stats || {}
+  const c = document.getElementById('usd-circ')
+  if (c) c.textContent = fmt(s.circulation)
+  const b = document.getElementById('usd-backing')
+  if (b) b.textContent = s.backingRatio || '100%+'
+  const m = document.getElementById('x7usd-mcap')
+  if (m) m.textContent = fmt(s.circulation)
+}
+
+// ── APEX ──────────────────────────────────────────────────────
+async function loadApex() {
+  const d = await api('/api/apex')
+  if (!d) return
+  const s = d.status || {}
+  const ins = document.getElementById('apex-insight')
+  if (ins) ins.textContent = s.insight || 'APEX is analyzing market conditions...'
+  const act = document.getElementById('apex-action')
+  if (act) act.textContent = s.lastAction || '—'
+
+  const metrics = document.getElementById('apex-metrics')
+  const guard = d.guardian || {}
+  if (metrics) {
+    metrics.innerHTML = `
+      <div style="display:flex;justify-content:space-between"><span style="color:var(--text3)">Priority Chain</span><span style="color:var(--bluelight)">${s.priorityChain||'arbitrum'}</span></div>
+      <div style="display:flex;justify-content:space-between"><span style="color:var(--text3)">Focus Strategy</span><span style="color:var(--bluelight)">${s.focus||'liquidation'}</span></div>
+      <div style="display:flex;justify-content:space-between"><span style="color:var(--text3)">Memory Usage</span><span>${guard.memoryMB||0} MB</span></div>
+      <div style="display:flex;justify-content:space-between"><span style="color:var(--text3)">Uptime</span><span>${Math.floor((guard.uptimeSeconds||0)/60)} min</span></div>
+      <div style="display:flex;justify-content:space-between"><span style="color:var(--text3)">Mode</span><span style="color:${guard.degradedMode?'var(--yellow)':'var(--green)'}">${guard.degradedMode?'DEGRADED':'FULL'}</span></div>
+    `
+  }
+
+  const log = document.getElementById('apex-log')
+  if (log && d.logs?.length > 0) {
+    log.innerHTML = d.logs.map(l => `
+      <div class="log-item">
+        <span class="log-type">[${(l.subsystem||'apex').toUpperCase()}]</span>
+        <span style="color:var(--text3)"> ${l.action||''}</span>
+        ${l.result ? '<span style="color:var(--text2)"> → ' + (typeof l.result === 'string' ? l.result.slice(0,60) : JSON.stringify(l.result).slice(0,60)) + '</span>' : ''}
+      </div>`).join('')
+  } else if (log) {
+    log.innerHTML = '<div class="log-item">APEX initialized — monitoring all systems</div>'
+  }
+}
+
+// ── ANALYTICS ─────────────────────────────────────────────────
+async function loadAnalytics() {
+  const d = await api('/api/analytics')
+  if (!d) return
+
+  const chainEl = document.getElementById('chain-analytics')
+  if (chainEl && d.byChain?.length > 0) {
+    chainEl.innerHTML = d.byChain.map(c => `
+      <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px">
+        <span style="font-weight:600">${c.chain}</span>
+        <span style="color:var(--green)">${fmt(c.revenue)}</span>
+        <span style="color:var(--text3)">${c.count} execs</span>
+        <span style="color:var(--text3)">${fmt(c.avg_profit)} avg</span>
+      </div>`).join('')
+  } else if (chainEl) {
+    chainEl.innerHTML = '<div style="color:var(--text3);padding:10px">Executing on all chains...</div>'
+  }
+
+  const wrEl = document.getElementById('winrate-analytics')
+  if (wrEl) {
+    wrEl.innerHTML = Object.entries(d.winRates||{}).map(([chain, rate]) => `
+      <div style="margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
+          <span>${chain}</span><span style="color:var(--green)">${(rate*100).toFixed(1)}%</span>
+        </div>
+        <div class="progress-bar"><div class="progress-fill" style="width:${(rate*100).toFixed(0)}%"></div></div>
+      </div>`).join('')
+  }
+
+  const stratEl = document.getElementById('strategy-analytics')
+  if (stratEl && d.byStrategy?.length > 0) {
+    stratEl.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px">` +
+      d.byStrategy.map(s => `
+        <div style="background:var(--surface2);border-radius:8px;padding:12px">
+          <div style="font-size:11px;color:var(--text3)">${s.strategy}</div>
+          <div style="font-size:18px;font-weight:700;color:var(--green);margin-top:4px">${fmt(s.revenue)}</div>
+          <div style="font-size:11px;color:var(--text3)">${s.count} executions</div>
+        </div>`).join('') + '</div>'
+  }
+}
+
+// ── SINGULARITY ───────────────────────────────────────────────
+async function loadSingularity() {
+  const d = await api('/api/singularity')
+  if (!d) return
+
+  const progress = parseFloat(d.progress||0)
+  const pEl = document.getElementById('sing-progress')
+  if (pEl) pEl.style.width = progress + '%'
+  const pcEl = document.getElementById('sing-pct')
+  if (pcEl) pcEl.textContent = progress.toFixed(0)
+  const phEl = document.getElementById('sing-phase')
+  if (phEl) phEl.textContent = d.phase||1
+  const pnEl = document.getElementById('sing-phasename')
+  if (pnEl) pnEl.textContent = d.phaseName||'IGNITION'
+
+  const phases = [
+    { id:1, name:'IGNITION', desc:'Deploy + Scan' },
+    { id:2, name:'ACCELERATION', desc:'All chains live' },
+    { id:3, name:'EXPANSION', desc:'Protocol outreach' },
+    { id:4, name:'INTEGRATION', desc:'First protocols live' },
+    { id:5, name:'CRITICAL MASS', desc:'NEXUS-7 + X7USD' },
+    { id:6, name:'SINGULARITY', desc:'Full capacity' }
+  ]
+
+  const grid = document.getElementById('phase-grid')
+  if (grid) {
+    const current = parseInt(d.phase||1)
+    grid.innerHTML = phases.map(p => {
+      const isDone = p.id < current
+      const isActive = p.id === current
+      return `<div class="phase-card ${isDone?'done':''} ${isActive?'active':''}">
+        <div class="phase-num ${isDone?'done':''} ${isActive?'active'':''}">${isDone?'✓':p.id}</div>
+        <div class="phase-name" style="font-weight:600;margin-top:4px">${p.name}</div>
+        <div class="phase-name">${p.desc}</div>
+      </div>`
+    }).join('')
+  }
+}
+
+// ── AUTO-REFRESH ──────────────────────────────────────────────
+function getActivePage() {
+  const active = document.querySelector('.page.active')
+  return active?.id?.replace('page-', '') || 'command'
+}
+
+// Refresh active page every 10 seconds
+setInterval(() => {
+  const page = getActivePage()
+  loadPageData(page)
+}, 10000)
+
+// Initial load
+loadCommand()
+</script>
+</body>
+</html>
